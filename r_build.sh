@@ -5,10 +5,10 @@ if [ $ISJ == '-j' ] ; then
     shift
 fi
 
-DEV_SERVER=(none mtlog-perftest01j.yandex.ru mtlog-perftest02j.yandex.ru mtlog-perftest03j.yandex.ru mtdev04t.yandex.ru)
+DEV_SERVER=(none mtlog-perftest01j.yandex.ru mtlog-perftest02j.yandex.ru mtlog-perftest03j.yandex.ru chertus-dev.sas.yp-c.yandex.net)
 
 # needs 'git remote add pf1 ssh://$USER@mtlog-perftest01j.yandex.ru/home/$USER/ClickHouse.git'
-DEV_REPO=(none pf1 pf2 pf3 dev4)
+DEV_REPO=(none pf1 pf2 pf3 qyp)
 
 USER=`id -un`
 
@@ -21,6 +21,7 @@ PATCH_DIFF=r_diff.patch
 
 CLANG_6='-DCMAKE_CXX_COMPILER=`which clang++-6.0` -DCMAKE_C_COMPILER=`which clang-6.0`'
 CLANG_7='-DCMAKE_CXX_COMPILER=`which clang++-7` -DCMAKE_C_COMPILER=`which clang-7`'
+CLANG_8='-DCMAKE_CXX_COMPILER=`which clang++-8` -DCMAKE_C_COMPILER=`which clang-8`'
 GCC_7='-DCMAKE_CXX_COMPILER=`which g++-7` -DCMAKE_C_COMPILER=`which gcc-7`'
 GCC_8='-DCMAKE_CXX_COMPILER=`which g++-8` -DCMAKE_C_COMPILER=`which gcc-8`'
 
@@ -42,7 +43,17 @@ ASAN_SYMBOLIZER_PATH="/usr/lib/llvm-6.0/bin/llvm-symbolizer"
 CTEST_OPTS="TEST_SERVER_CONFIG_PARAMS='$OVERRIDED_SETTINGS'"
 TEST_RUN_OPTS="TEST_OPT0='--no-long --skip compile_sizeof_packed shard_secure cancel_http_readonly url_engine fix_extra_seek \
     00634_performance_introspection_and_logging 00965 00974_query 00974_distr 00974_text_log 00990_metric_log live_view \
-    00956_sensitive_data_masking'"
+    00956_sensitive_data_masking 01016_macros 00952_insert_into_distributed_with_materialized_column 01023 \
+    01040_dictionary_invalidate_query_failover \
+    01043_dictionary 01041_create_dictionary_if_not_exists \
+    01042_system_reload_dictionary_reloads_completely \
+    01038_dictionary_lifetime_min_zero_sec \
+    01036_no_superfluous_dict_reload_on_create_database \
+    01036_no_superfluous_dict_reload_on_create_database_2 \
+    01033_dictionaries_lifetime \
+    01018_dictionaries_from_dictionaries \
+    01018_Distributed__shard_num distributed_directory \
+    01018_ddl_dictionaries'"
 
 remote_build()
 {
@@ -50,37 +61,6 @@ remote_build()
     REPO=$2
     CMAKE_OPTIONS=$3
     shift 3
-
-    RELEASE=`echo "$@" | grep release | wc -l`
-    WITH_ASAN=`echo "$@" | grep asan | wc -l`
-    WITH_TSAN=`echo "$@" | grep tsan | wc -l`
-    WITH_UBSAN=`echo "$@" | grep ubsan | wc -l`
-    WITH_EMBEDDED=`echo "$@" | grep embedded | wc -l`
-    NO_LIBCXX=`echo "$@" | grep nolibcxx | wc -l`
-    IS_UNBUNDLED=`echo "$@" | grep unbundled | wc -l`
-
-    if [ $RELEASE -eq 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $DEBUG"
-    fi
-    if [ $WITH_ASAN -ne 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $ASAN"
-    fi
-    if [ $WITH_TSAN -ne 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $TSAN"
-    fi
-    if [ $WITH_UBSAN -ne 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $UBSAN"
-    fi
-    if [ $NO_LIBCXX -ne 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS -DUSE_LIBCXX=0"
-    fi
-    if [ $WITH_EMBEDDED -eq 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $NO_EMBEDDED"
-    fi
-    if [ $IS_UNBUNDLED -ne 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $UNBUNDLED"
-    fi
-    echo "cmake options:" $CMAKE_OPTIONS
 
     git push $REPO
     ssh $SERVER "cd $CH_PATH && git clean -f && git reset --hard HEAD && git fetch && git checkout $CURRENT_BRANCH && git pull"
@@ -102,7 +82,54 @@ remote_build()
     rm $PATCH_CACHED $PATCH_DIFF
 
     ssh $SERVER "cd $CH_PATH && git status"
-    ssh $SERVER "mkdir -p $CH_BUILD_PATH && cd $CH_BUILD_PATH && rm -f CMakeCache.txt && cmake -G Ninja $CMAKE_OPTIONS $CH_PATH && $MAKE $TARGET"
+    ssh $SERVER "cd $CH_BUILD_PATH && $MAKE $TARGET"
+}
+
+remote_cmake()
+{
+    SERVER=$USER@$1
+    REPO=$2
+    CMAKE_OPTIONS=$3
+    shift 3
+    
+    RELEASE=`echo "$@" | grep release | wc -l`
+    WITH_ASAN=`echo "$@" | grep asan | wc -l`
+    WITH_TSAN=`echo "$@" | grep tsan | wc -l`
+    WITH_UBSAN=`echo "$@" | grep ubsan | wc -l`
+    WITH_DISABLED=`echo "$@" | grep disabled | wc -l`
+    NO_LIBCXX=`echo "$@" | grep nolibcxx | wc -l`
+    IS_UNBUNDLED=`echo "$@" | grep unbundled | wc -l`
+
+    if [ $RELEASE -eq 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $DEBUG"
+    fi
+    if [ $WITH_ASAN -ne 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $ASAN"
+    fi
+    if [ $WITH_TSAN -ne 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $TSAN"
+    fi
+    if [ $WITH_UBSAN -ne 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $UBSAN"
+    fi
+    if [ $NO_LIBCXX -ne 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS -DUSE_LIBCXX=0"
+    fi
+    if [ $WITH_DISABLED -eq 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $NO_EMBEDDED"
+    fi
+    if [ $IS_UNBUNDLED -ne 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $UNBUNDLED"
+    fi
+    echo "cmake options:" $CMAKE_OPTIONS
+    
+    git push $REPO
+    ssh $SERVER "cd $CH_PATH && git clean -f && git reset --hard HEAD && git fetch && git checkout $CURRENT_BRANCH && git pull"
+    if [ $? -ne 0 ] ; then
+        exit
+    fi
+
+    ssh $SERVER "mkdir -p $CH_BUILD_PATH && cd $CH_BUILD_PATH && rm -f CMakeCache.txt && cmake -G Ninja $CMAKE_OPTIONS $CH_PATH"
 }
 
 clear_build()
@@ -173,22 +200,26 @@ run_tests_local()
 
 case "$1" in
 "local")
-    cd $CH_BUILD_PATH && ninja
+    #cd $CH_BUILD_PATH && rm -f CMakeCache.txt && cmake -G Ninja $CMAKE_OPTIONS $CH_PATH
+    cd $CH_BUILD_PATH && $MAKE
     ;;
 "1")
-    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]} "$CLANG_6" $@
+    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
     ;;
 "2")
-    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]} "$CLANG_7" $@
-    #remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]} "$GCC_8" $@
+    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
     ;;
 "3")
-    #remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]} "$CLANG_7" $@
-    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]} "$GCC_8" $@ "embedded"
+    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
     ;;
 "4")
-    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]} "$CLANG_7" $@
-    #remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]} "$GCC_8" $@
+    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
+    ;;
+"cmake")
+    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$CLANG_7" $@
+    ;;
+"cmake-gcc")
+    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$GCC_8" $@
     ;;
 "clear")
     clear_build ${DEV_SERVER[$2]}
