@@ -1,5 +1,14 @@
-CREATE DATABASE IF NOT EXISTS tcph;
+CREATE DATABASE IF NOT EXISTS tpch;
 USE tpch;
+
+DROP TABLE IF EXISTS PART;
+DROP TABLE IF EXISTS SUPPLIER;
+DROP TABLE IF EXISTS PARTSUPP;
+DROP TABLE IF EXISTS CUSTOMER;
+DROP TABLE IF EXISTS ORDERS;
+DROP TABLE IF EXISTS LINEITEM;
+DROP TABLE IF EXISTS NATION;
+DROP TABLE IF EXISTS REGION;
 
 CREATE TABLE PART
 (
@@ -11,7 +20,7 @@ CREATE TABLE PART
     P_SIZE          Int32,  -- integer
     P_CONTAINER     FixedString(10),
     P_RETAILPRICE   Decimal(18,2),
-    P_COMMENT       String  -- variable text, size 23
+    P_COMMENT       String, -- variable text, size 23
     -- PRIMARY KEY (P_PARTKEY)
     CONSTRAINT pk CHECK P_PARTKEY >= 0,
     CONSTRAINT positive CHECK (P_SIZE >= 0 AND P_RETAILPRICE >= 0)
@@ -25,7 +34,7 @@ CREATE TABLE SUPPLIER
     S_NATIONKEY     Int32,  -- identifier
     S_PHONE         FixedString(15),
     S_ACCTBAL       Decimal(18,2),
-    S_COMMENT       String  -- variable text, size 101
+    S_COMMENT       String, -- variable text, size 101
     -- PRIMARY KEY (S_SUPPKEY)
     CONSTRAINT pk CHECK S_SUPPKEY >= 0
 ) engine = MergeTree ORDER BY (S_SUPPKEY, S_NATIONKEY);
@@ -36,7 +45,7 @@ CREATE TABLE PARTSUPP
     PS_SUPPKEY      Int32,  -- identifier
     PS_AVAILQTY     Int32,  -- integer
     PS_SUPPLYCOST   Decimal(18,2),
-    PS_COMMENT      String  -- variable text, size 199
+    PS_COMMENT      String, -- variable text, size 199
     -- PRIMARY KEY (PS_PARTKEY, PS_SUPPKEY)
     -- FOREIGN KEY (PS_PARTKEY) -> P_PARTKEY
     -- FOREIGN KEY (PS_SUPPKEY) -> S_SUPPKEY
@@ -53,7 +62,7 @@ CREATE TABLE CUSTOMER
     C_PHONE         FixedString(15),
     C_ACCTBAL       Decimal(18,2),
     C_MKTSEGMENT    FixedString(10),
-    C_COMMENT       String  -- variable text, size 117
+    C_COMMENT       String, -- variable text, size 117
     -- PRIMARY KEY (C_CUSTKEY)
     -- FOREIGN KEY (C_NATIONKEY) -> N_NATIONKEY
     CONSTRAINT pk CHECK C_CUSTKEY >= 0
@@ -96,7 +105,7 @@ CREATE TABLE LINEITEM
     -- PRIMARY KEY (L_ORDERKEY, L_LINENUMBER)
     -- FOREIGN KEY (L_ORDERKEY) -> O_ORDERKEY
     -- FOREIGN KEY (L_PARTKEY, L_SUPPKEY) -> (PS_PARTKEY, PS_SUPPKEY)
-    CONSTRAINT c1 CHECK (L_QUANTITY >= 0 AND L_EXTENDEDPRICE >= 0 AND L_TAX >= 0 AND L_SHIPDATE <= L_RECEIPTDATE)
+    CONSTRAINT c1 CHECK (L_QUANTITY >= 0 AND L_EXTENDEDPRICE >= 0 AND L_TAX >= 0 AND L_SHIPDATE <= L_RECEIPTDATE),
     CONSTRAINT c2 CHECK (L_DISCOUNT >= 0 AND L_DISCOUNT <= 1.00)
 ) engine = MergeTree ORDER BY (L_ORDERKEY, L_LINENUMBER, L_PARTKEY, L_SUPPKEY);
 
