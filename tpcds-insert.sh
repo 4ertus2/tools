@@ -1,7 +1,7 @@
-CLICKHOUSE_CLIENT=$HOME/src/run/clickhouse-client
+CLICKHOUSE_CLIENT=$HOME/ch_run/clickhouse-client
 CLIENT="$CLICKHOUSE_CLIENT --format_csv_delimiter=|"
 
-DIR=./tpcds_1000
+DIR=$HOME/tpcds
 SUFFIX=1_16
 
 $CLIENT -q 'insert into tpcds.call_center format CSV'               < $DIR/call_center_$SUFFIX.dat
