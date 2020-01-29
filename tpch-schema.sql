@@ -1,115 +1,115 @@
 CREATE DATABASE IF NOT EXISTS tpch;
 USE tpch;
 
-DROP TABLE IF EXISTS PART;
-DROP TABLE IF EXISTS SUPPLIER;
-DROP TABLE IF EXISTS PARTSUPP;
-DROP TABLE IF EXISTS CUSTOMER;
-DROP TABLE IF EXISTS ORDERS;
-DROP TABLE IF EXISTS LINEITEM;
-DROP TABLE IF EXISTS NATION;
-DROP TABLE IF EXISTS REGION;
+DROP TABLE IF EXISTS part;
+DROP TABLE IF EXISTS supplier;
+DROP TABLE IF EXISTS partsupp;
+DROP TABLE IF EXISTS customer;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS lineitem;
+DROP TABLE IF EXISTS nation;
+DROP TABLE IF EXISTS region;
 
-CREATE TABLE PART
+CREATE TABLE part
 (
-    P_PARTKEY       Int32,  -- PK
-    P_NAME          String, -- variable text, size 55
-    P_MFGR          FixedString(25),
-    P_BRAND         FixedString(10),
-    P_TYPE          String, -- variable text, size 25
-    P_SIZE          Int32,  -- integer
-    P_CONTAINER     FixedString(10),
-    P_RETAILPRICE   Decimal(18,2),
-    P_COMMENT       String, -- variable text, size 23
-    CONSTRAINT pk CHECK P_PARTKEY >= 0,
-    CONSTRAINT positive CHECK (P_SIZE >= 0 AND P_RETAILPRICE >= 0)
-) engine = MergeTree ORDER BY (P_PARTKEY);
+    p_partkey       Int32,  -- PK
+    p_name          String, -- variable text, size 55
+    p_mfgr          FixedString(25),
+    p_brand         FixedString(10),
+    p_type          String, -- variable text, size 25
+    p_size          Int32,  -- integer
+    p_container     FixedString(10),
+    p_retailprice   Decimal(18,2),
+    p_comment       String, -- variable text, size 23
+    CONSTRAINT pk CHECK p_partkey >= 0,
+    CONSTRAINT positive CHECK (p_size >= 0 AND p_retailprice >= 0)
+) engine = MergeTree ORDER BY (p_partkey);
 
-CREATE TABLE SUPPLIER
+CREATE TABLE supplier
 (
-    S_SUPPKEY       Int32,  -- PK
-    S_NAME          FixedString(25),
-    S_ADDRESS       String, -- variable text, size 40
-    S_NATIONKEY     Int32,  -- FK N_NATIONKEY
-    S_PHONE         FixedString(15),
-    S_ACCTBAL       Decimal(18,2),
-    S_COMMENT       String, -- variable text, size 101
-    CONSTRAINT pk CHECK S_SUPPKEY >= 0
-) engine = MergeTree ORDER BY (S_SUPPKEY);
+    s_suppkey       Int32,  -- PK
+    s_name          FixedString(25),
+    s_address       String, -- variable text, size 40
+    s_nationkey     Int32,  -- FK n_nationkey
+    s_phone         FixedString(15),
+    s_acctbal       Decimal(18,2),
+    s_comment       String, -- variable text, size 101
+    CONSTRAINT pk CHECK s_suppkey >= 0
+) engine = MergeTree ORDER BY (s_suppkey);
 
-CREATE TABLE PARTSUPP
+CREATE TABLE partsupp
 (
-    PS_PARTKEY      Int32,  -- PK(1), FK P_PARTKEY
-    PS_SUPPKEY      Int32,  -- PK(2), FK S_SUPPKEY
-    PS_AVAILQTY     Int32,  -- integer
-    PS_SUPPLYCOST   Decimal(18,2),
-    PS_COMMENT      String, -- variable text, size 199
-    CONSTRAINT pk CHECK PS_PARTKEY >= 0,
-    CONSTRAINT c1 CHECK (PS_AVAILQTY >= 0 AND PS_SUPPLYCOST >= 0)
-) engine = MergeTree ORDER BY (PS_PARTKEY, PS_SUPPKEY);
+    ps_partkey      Int32,  -- PK(1), FK p_partkey
+    ps_suppkey      Int32,  -- PK(2), FK s_suppkey
+    ps_availqty     Int32,  -- integer
+    ps_supplycost   Decimal(18,2),
+    ps_comment      String, -- variable text, size 199
+    CONSTRAINT pk CHECK ps_partkey >= 0,
+    CONSTRAINT c1 CHECK (ps_availqty >= 0 AND ps_supplycost >= 0)
+) engine = MergeTree ORDER BY (ps_partkey, ps_suppkey);
 
-CREATE TABLE CUSTOMER
+CREATE TABLE customer
 (
-    C_CUSTKEY       Int32,  -- PK
-    C_NAME          String, -- variable text, size 25
-    C_ADDRESS       String, -- variable text, size 40
-    C_NATIONKEY     Int32,  -- FK N_NATIONKEY
-    C_PHONE         FixedString(15),
-    C_ACCTBAL       Decimal(18,2),
-    C_MKTSEGMENT    FixedString(10),
-    C_COMMENT       String, -- variable text, size 117
-    CONSTRAINT pk CHECK C_CUSTKEY >= 0
-) engine = MergeTree ORDER BY (C_CUSTKEY);
+    c_custkey       Int32,  -- PK
+    c_name          String, -- variable text, size 25
+    c_address       String, -- variable text, size 40
+    c_nationkey     Int32,  -- FK n_nationkey
+    c_phone         FixedString(15),
+    c_acctbal       Decimal(18,2),
+    c_mktsegment    FixedString(10),
+    c_comment       String, -- variable text, size 117
+    CONSTRAINT pk CHECK c_custkey >= 0
+) engine = MergeTree ORDER BY (c_custkey);
 
-CREATE TABLE ORDERS
+CREATE TABLE orders
 (
-    O_ORDERKEY      Int32,  -- PK
-    O_CUSTKEY       Int32,  -- FK C_CUSTKEY
-    O_ORDERSTATUS   FixedString(1),
-    O_TOTALPRICE    Decimal(18,2),
-    O_ORDERDATE     Date,
-    O_ORDERPRIORITY FixedString(15),
-    O_CLERK         FixedString(15),
-    O_SHIPPRIORITY  Int32,  -- integer
-    O_COMMENT       String, -- variable text, size 79
-    CONSTRAINT c1 CHECK O_TOTALPRICE >= 0
-) engine = MergeTree ORDER BY (O_ORDERDATE, O_ORDERKEY);
+    o_orderkey      Int32,  -- PK
+    o_custkey       Int32,  -- FK c_custkey
+    o_orderstatus   FixedString(1),
+    o_totalprice    Decimal(18,2),
+    o_orderdate     Date,
+    o_orderpriority FixedString(15),
+    o_clerk         FixedString(15),
+    o_shippriority  Int32,  -- integer
+    o_comment       String, -- variable text, size 79
+    CONSTRAINT c1 CHECK o_totalprice >= 0
+) engine = MergeTree ORDER BY (o_orderdate, o_orderkey);
 
-CREATE TABLE LINEITEM
+CREATE TABLE lineitem
 (
-    L_ORDERKEY      Int32,  -- PK(1), FK O_ORDERKEY
-    L_PARTKEY       Int32,  -- FK PS_PARTKEY
-    L_SUPPKEY       Int32,  -- FK PS_SUPPKEY
-    L_LINENUMBER    Int32,  -- PK(2)
-    L_QUANTITY      Decimal(18,2),
-    L_EXTENDEDPRICE Decimal(18,2),
-    L_DISCOUNT      Decimal(18,2),
-    L_TAX           Decimal(18,2),
-    L_RETURNFLAG    FixedString(1),
-    L_LINESTATUS    FixedString(1),
-    L_SHIPDATE      Date,
-    L_COMMITDATE    Date,
-    L_RECEIPTDATE   Date,
-    L_SHIPINSTRUCT  FixedString(25),
-    L_SHIPMODE      FixedString(10),
-    L_COMMENT       String, -- variable text size 44
-    CONSTRAINT c1 CHECK (L_QUANTITY >= 0 AND L_EXTENDEDPRICE >= 0 AND L_TAX >= 0 AND L_SHIPDATE <= L_RECEIPTDATE)
---  CONSTRAINT c2 CHECK (L_DISCOUNT >= 0 AND L_DISCOUNT <= 1)
-) engine = MergeTree ORDER BY (L_SHIPDATE, L_RECEIPTDATE, L_ORDERKEY, L_LINENUMBER);
+    l_orderkey      Int32,  -- PK(1), FK o_orderkey
+    l_partkey       Int32,  -- FK ps_partkey
+    l_suppkey       Int32,  -- FK ps_suppkey
+    l_linenumber    Int32,  -- PK(2)
+    l_quantity      Decimal(18,2),
+    l_extendedprice Decimal(18,2),
+    l_discount      Decimal(18,2),
+    l_tax           Decimal(18,2),
+    l_returnflag    FixedString(1),
+    l_linestatus    FixedString(1),
+    l_shipdate      Date,
+    l_commitdate    Date,
+    l_receiptdate   Date,
+    l_shipinstruct  FixedString(25),
+    l_shipmode      FixedString(10),
+    l_comment       String, -- variable text size 44
+    CONSTRAINT c1 CHECK (l_quantity >= 0 AND l_extendedprice >= 0 AND l_tax >= 0 AND l_shipdate <= l_receiptdate)
+--  CONSTRAINT c2 CHECK (l_discount >= 0 AND l_discount <= 1)
+) engine = MergeTree ORDER BY (l_shipdate, l_receiptdate, l_orderkey, l_linenumber);
 
-CREATE TABLE NATION
+CREATE TABLE nation
 (
-    N_NATIONKEY     Int32,  -- PK
-    N_NAME          FixedString(25),
-    N_REGIONKEY     Int32,  -- FK R_REGIONKEY
-    N_COMMENT       String, -- variable text, size 152
-    CONSTRAINT pk CHECK N_NATIONKEY >= 0
-) Engine = MergeTree ORDER BY (N_NATIONKEY);
+    n_nationkey     Int32,  -- PK
+    n_name          FixedString(25),
+    n_regionkey     Int32,  -- FK r_regionkey
+    n_comment       String, -- variable text, size 152
+    CONSTRAINT pk CHECK n_nationkey >= 0
+) Engine = MergeTree ORDER BY (n_nationkey);
 
-CREATE TABLE REGION
+CREATE TABLE region
 (
-    R_REGIONKEY     Int32,  -- PK
-    R_NAME          FixedString(25),
-    R_COMMENT       String, -- variable text, size 152
-    CONSTRAINT pk CHECK R_REGIONKEY >= 0
-) engine = MergeTree ORDER BY (R_REGIONKEY);
+    r_regionkey     Int32,  -- PK
+    r_name          FixedString(25),
+    r_comment       String, -- variable text, size 152
+    CONSTRAINT pk CHECK r_regionkey >= 0
+) engine = MergeTree ORDER BY (r_regionkey);
