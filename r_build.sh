@@ -19,14 +19,12 @@ CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
 PATCH_CACHED=r_cached.patch
 PATCH_DIFF=r_diff.patch
 
-CLANG_6='-DCMAKE_CXX_COMPILER=`which clang++-6.0` -DCMAKE_C_COMPILER=`which clang-6.0`'
-CLANG_7='-DCMAKE_CXX_COMPILER=`which clang++-7` -DCMAKE_C_COMPILER=`which clang-7`'
-CLANG_8='-DCMAKE_CXX_COMPILER=`which clang++-8` -DCMAKE_C_COMPILER=`which clang-8`'
-GCC_7='-DCMAKE_CXX_COMPILER=`which g++-7` -DCMAKE_C_COMPILER=`which gcc-7`'
-GCC_8='-DCMAKE_CXX_COMPILER=`which g++-8` -DCMAKE_C_COMPILER=`which gcc-8`'
+CLANG_9='-DCMAKE_CXX_COMPILER=`which clang++-9` -DCMAKE_C_COMPILER=`which clang-9`'
+GCC_9='-DCMAKE_CXX_COMPILER=`which g++-9` -DCMAKE_C_COMPILER=`which gcc-9`'
 
 TARGET="clickhouse"
-MAKE="nice -10 ninja"
+#MAKE="nice -10 ninja"
+MAKE="nice -10 make -j 56"
 NO_EMBEDDED="-DENABLE_EMBEDDED_COMPILER=0"
 NO_KAFKA="-DENABLE_RDKAFKA=0"
 NO_STATIC="-DUSE_STATIC_LIBRARIES=0"
@@ -39,15 +37,23 @@ ASAN_SYMBOLIZER_PATH="/usr/lib/llvm-6.0/bin/llvm-symbolizer"
 
 #OVERRIDED_SETTINGS="--compile_expressions=1"
 #OVERRIDED_SETTINGS="--enable_optimize_predicate_expression=1"
+#OVERRIDED_SETTINGS="--partial_merge_join=1"
+#OVERRIDED_SETTINGS="--experimental_use_processors=1"
 
 CTEST_OPTS="TEST_SERVER_CONFIG_PARAMS='$OVERRIDED_SETTINGS'"
 TEST_RUN_OPTS="TEST_OPT0='--no-long --skip compile_sizeof_packed shard_secure cancel_http_readonly url_engine fix_extra_seek \
-    00634_performance_introspection_and_logging 00965 00974_query 00974_distr 00974_text_log 00990_metric_log live_view \
+    00505_secure 00634_performance_introspection_and_logging 00965 00974_query 00974_distr 00974_text_log 00990_metric_log live_view \
     00956_sensitive_data_masking 01016_macros 00952_insert_into_distributed_with_materialized_column 01023 \
+    01080_check_for_error_incorrect_size_of_nested_column \
+    01071_force_optimize_skip_unused_shards \
+    01050_clickhouse_dict_source_with_subquery \
+    01040_dictionary_invalidate_query_switchover \
     01040_dictionary_invalidate_query_failover \
     01043_dictionary 01041_create_dictionary_if_not_exists \
     01042_system_reload_dictionary_reloads_completely \
     01038_dictionary_lifetime_min_zero_sec \
+    01037_polygon_dict_multi_polygons \
+    01037_polygon_dict_simple_polygons \
     01036_no_superfluous_dict_reload_on_create_database \
     01036_no_superfluous_dict_reload_on_create_database_2 \
     01033_dictionaries_lifetime \
@@ -55,12 +61,10 @@ TEST_RUN_OPTS="TEST_OPT0='--no-long --skip compile_sizeof_packed shard_secure ca
     01018_Distributed__shard_num distributed_directory \
     01018_ddl_dictionaries'"
 
-remote_build()
+remote_patch()
 {
     SERVER=$USER@$1
     REPO=$2
-    CMAKE_OPTIONS=$3
-    shift 3
 
     git push $REPO
     ssh $SERVER "cd $CH_PATH && git clean -f && git reset --hard HEAD && git fetch && git checkout $CURRENT_BRANCH && git pull"
@@ -82,6 +86,13 @@ remote_build()
     rm $PATCH_CACHED $PATCH_DIFF
 
     ssh $SERVER "cd $CH_PATH && git status"
+}
+
+remote_build()
+{
+    SERVER=$USER@$1
+
+    remote_patch $@
     ssh $SERVER "cd $CH_BUILD_PATH && $MAKE $TARGET"
 }
 
@@ -90,7 +101,11 @@ remote_cmake()
     SERVER=$USER@$1
     REPO=$2
     CMAKE_OPTIONS=$3
-    shift 3
+    
+    remote_patch $@
+    
+#   GENERATOR='-G Ninja'
+#   GENERATOR='-G "Unix Makefiles"'
     
     RELEASE=`echo "$@" | grep release | wc -l`
     WITH_ASAN=`echo "$@" | grep asan | wc -l`
@@ -122,14 +137,8 @@ remote_cmake()
         CMAKE_OPTIONS="$CMAKE_OPTIONS $UNBUNDLED"
     fi
     echo "cmake options:" $CMAKE_OPTIONS
-    
-    git push $REPO
-    ssh $SERVER "cd $CH_PATH && git clean -f && git reset --hard HEAD && git fetch && git checkout $CURRENT_BRANCH && git pull"
-    if [ $? -ne 0 ] ; then
-        exit
-    fi
 
-    ssh $SERVER "mkdir -p $CH_BUILD_PATH && cd $CH_BUILD_PATH && rm -f CMakeCache.txt && cmake -G Ninja $CMAKE_OPTIONS $CH_PATH"
+    ssh $SERVER "mkdir -p $CH_BUILD_PATH && cd $CH_BUILD_PATH && rm -f CMakeCache.txt && cmake $GENERATOR $CMAKE_OPTIONS $CH_PATH"
 }
 
 clear_build()
@@ -216,10 +225,10 @@ case "$1" in
     remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
     ;;
 "cmake")
-    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$CLANG_7" $@
+    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$CLANG_9" $@
     ;;
 "cmake-gcc")
-    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$GCC_8" $@
+    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$GCC_9" $@
     ;;
 "clear")
     clear_build ${DEV_SERVER[$2]}
