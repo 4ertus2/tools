@@ -179,21 +179,14 @@ dyn_fetch()
     SERVER=$USER@$1
 
     DEPS=`ssh $SERVER "ldd $PATH_TO_BIN/clickhouse" | awk '{print $3}' | sort`
-    CONTRIB=`echo "$DEPS" | grep $CH_BUILD_PATH/contrib`
-    OUR_LIBS=`echo "$DEPS" | grep $CH_BUILD_PATH/dbms`
     
     echo fetching binary
     fetch $1 $PATH_TO_BIN/clickhouse
 
-    for LIB in $CONTRIB ; do
+    for LIB in $DEPS ; do
         echo fetching $LIB
         fetch $1 $LIB
-    done
-    
-    for LIB in $OUR_LIBS ; do
-        echo fetching $LIB
-        fetch $1 $LIB
-    done
+    done    
 }
 
 remove_branch()
