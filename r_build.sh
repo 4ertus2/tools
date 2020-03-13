@@ -185,6 +185,7 @@ dyn_fetch()
 
     for LIB in $DEPS ; do
         echo fetching $LIB
+        mkdir -p `dirname $LIB`
         fetch $1 $LIB
     done    
 }
