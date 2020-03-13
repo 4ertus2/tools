@@ -15,6 +15,7 @@ USER=`id -un`
 CH_PATH=/home/$USER/src/ClickHouse
 CH_BUILD_DIR=_build
 CH_BUILD_PATH=$CH_PATH/$CH_BUILD_DIR
+PATH_TO_BIN=$CH_BUILD_PATH/dbms/programs
 CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
 PATCH_CACHED=r_cached.patch
 PATCH_DIFF=r_diff.patch
@@ -28,7 +29,6 @@ MAKE="nice -10 make -j 56"
 NO_EMBEDDED="-DENABLE_EMBEDDED_COMPILER=0"
 NO_KAFKA="-DENABLE_RDKAFKA=0"
 NO_STATIC="-DUSE_STATIC_LIBRARIES=0"
-UNBUNDLED="-DUNBUNDLED=1"
 DEBUG="-DCMAKE_BUILD_TYPE=Debug"
 ASAN="-DSANITIZE=address"
 TSAN="-DSANITIZE=thread"
@@ -37,15 +37,20 @@ ASAN_SYMBOLIZER_PATH="/usr/lib/llvm-6.0/bin/llvm-symbolizer"
 
 #OVERRIDED_SETTINGS="--compile_expressions=1"
 #OVERRIDED_SETTINGS="--enable_optimize_predicate_expression=1"
-#OVERRIDED_SETTINGS="--partial_merge_join=1"
-#OVERRIDED_SETTINGS="--experimental_use_processors=1"
+#OVERRIDED_SETTINGS="--join_algorithm=auto"
+#OVERRIDED_SETTINGS="--experimental_use_processors=0"
 
 CTEST_OPTS="TEST_SERVER_CONFIG_PARAMS='$OVERRIDED_SETTINGS'"
-TEST_RUN_OPTS="TEST_OPT0='--no-long --skip compile_sizeof_packed shard_secure cancel_http_readonly url_engine fix_extra_seek \
-    00505_secure 00634_performance_introspection_and_logging 00965 00974_query 00974_distr 00974_text_log 00990_metric_log live_view \
-    00956_sensitive_data_masking 01016_macros 00952_insert_into_distributed_with_materialized_column 01023 \
+TEST_RUN_OPTS="TEST_OPT0='--no-long --skip compile_sizeof_packed shard_secure cancel_http_readonly url_engine fix_extra_seek live_view \
+    01092_memory_profiler \
+    01091_num_threads \
+    01088_benchmark_query_id \
+    01083_log_family_disk_memory \
+    01083_expressions_in_engine_arguments \
     01080_check_for_error_incorrect_size_of_nested_column \
     01071_force_optimize_skip_unused_shards \
+    01062_alter_on_mutataion \
+    01057_http_compression_prefer_brotli \
     01050_clickhouse_dict_source_with_subquery \
     01040_dictionary_invalidate_query_switchover \
     01040_dictionary_invalidate_query_failover \
@@ -57,9 +62,15 @@ TEST_RUN_OPTS="TEST_OPT0='--no-long --skip compile_sizeof_packed shard_secure ca
     01036_no_superfluous_dict_reload_on_create_database \
     01036_no_superfluous_dict_reload_on_create_database_2 \
     01033_dictionaries_lifetime \
+    01023_materialized_view_query_context \
     01018_dictionaries_from_dictionaries \
     01018_Distributed__shard_num distributed_directory \
-    01018_ddl_dictionaries'"
+    01018_ddl_dictionaries \
+    01016_macros \
+    00990_metric_log 00974_query 00974_distr 00974_text_log \
+    00956_sensitive_data_masking \
+    00952_insert_into_distributed_with_materialized_column \
+    00505_secure 00634_performance_introspection_and_logging'"
 
 remote_patch()
 {
@@ -113,7 +124,7 @@ remote_cmake()
     WITH_UBSAN=`echo "$@" | grep ubsan | wc -l`
     WITH_DISABLED=`echo "$@" | grep disabled | wc -l`
     NO_LIBCXX=`echo "$@" | grep nolibcxx | wc -l`
-    IS_UNBUNDLED=`echo "$@" | grep unbundled | wc -l`
+    DYNLIB=`echo "$@" | grep dynlib | wc -l`
 
     if [ $RELEASE -eq 0 ] ; then
         CMAKE_OPTIONS="$CMAKE_OPTIONS $DEBUG"
@@ -133,8 +144,8 @@ remote_cmake()
     if [ $WITH_DISABLED -eq 0 ] ; then
         CMAKE_OPTIONS="$CMAKE_OPTIONS $NO_EMBEDDED"
     fi
-    if [ $IS_UNBUNDLED -ne 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $UNBUNDLED"
+    if [ $DYNLIB -ne 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $NO_STATIC"
     fi
     echo "cmake options:" $CMAKE_OPTIONS
 
@@ -148,36 +159,41 @@ clear_build()
     ssh $SERVER "mkdir $CH_BUILD_PATH"
 }
 
-fetch_some()
-{
-    scp -r $1:/$CH_BUILD_PATH/$2 ./_build/$2
-}
-
-fetch_build()
-{
-    NAME=clickhouse
-    PATH_TO_BIN=./_build/dbms/programs
-    REMOTE_PATH=$CH_BUILD_PATH/dbms/programs
-
-    LOCAL_CRC=`md5sum -b $PATH_TO_BIN/$NAME | cut -f 1 -d " "`
-    REMOTE_CRC=`ssh $1 md5sum -b $REMOTE_PATH/$NAME | cut -f 1 -d " "`
-    echo $LOCAL_CRC $REMOTE_CRC
-
-    if [ "$LOCAL_CRC" != "$REMOTE_CRC" ] ; then
-        rm $PATH_TO_BIN/$NAME
-        scp -r $1:/$REMOTE_PATH/$NAME $PATH_TO_BIN/
-    fi
-}
-
 fetch()
 {
     SERVER=$USER@$1
+    NAME=$2
 
-    if [ "x$2" == "x" ] ; then
-        fetch_build $SERVER
-    else
-        fetch_some $SERVER $2
+    LOCAL_CRC=`md5sum -b $NAME | cut -f 1 -d " "`
+    REMOTE_CRC=`ssh $1 md5sum -b $NAME | cut -f 1 -d " "`
+    echo $LOCAL_CRC $REMOTE_CRC
+
+    if [ "$LOCAL_CRC" != "$REMOTE_CRC" ] ; then
+        rm $NAME
+        scp -r $SERVER:$NAME $NAME
     fi
+}
+
+dyn_fetch()
+{
+    SERVER=$USER@$1
+
+    DEPS=`ssh $SERVER "ldd $PATH_TO_BIN/clickhouse" | awk '{print $3}' | sort`
+    CONTRIB=`echo "$DEPS" | grep $CH_BUILD_PATH/contrib`
+    OUR_LIBS=`echo "$DEPS" | grep $CH_BUILD_PATH/dbms`
+    
+    echo fetching binary
+    fetch $1 $PATH_TO_BIN/clickhouse
+
+    for LIB in $CONTRIB ; do
+        echo fetching $LIB
+        fetch $1 $LIB
+    done
+    
+    for LIB in $OUR_LIBS ; do
+        echo fetching $LIB
+        fetch $1 $LIB
+    done
 }
 
 remove_branch()
@@ -234,7 +250,10 @@ case "$1" in
     clear_build ${DEV_SERVER[$2]}
     ;;
 "fetch")
-    fetch ${DEV_SERVER[$2]} $3
+    fetch ${DEV_SERVER[$2]} $PATH_TO_BIN/clickhouse
+    ;;
+"dyn-fetch")
+    dyn_fetch ${DEV_SERVER[$2]}
     ;;
 "rmb")
     remove_branch ${DEV_SERVER[$2]} $3
