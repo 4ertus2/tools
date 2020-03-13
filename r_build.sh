@@ -178,7 +178,7 @@ dyn_fetch()
 {
     SERVER=$USER@$1
 
-    DEPS=`ssh $SERVER "ldd $PATH_TO_BIN/clickhouse" | awk '{print $3}' | sort`
+    DEPS=`ssh $SERVER "ldd $PATH_TO_BIN/clickhouse" | awk '{print $3}' | sort | grep $CH_BUILD_PATH`
     
     echo fetching binary
     fetch $1 $PATH_TO_BIN/clickhouse
