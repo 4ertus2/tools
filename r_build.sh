@@ -15,20 +15,23 @@ USER=`id -un`
 CH_PATH=/home/$USER/src/ClickHouse
 CH_BUILD_DIR=_build
 CH_BUILD_PATH=$CH_PATH/$CH_BUILD_DIR
-PATH_TO_BIN=$CH_BUILD_PATH/dbms/programs
+PATH_TO_BIN=$CH_BUILD_PATH/programs
 CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
 PATCH_CACHED=r_cached.patch
 PATCH_DIFF=r_diff.patch
 
+CLANG_8='-DCMAKE_CXX_COMPILER=`which clang++-8` -DCMAKE_C_COMPILER=`which clang-8`'
 CLANG_9='-DCMAKE_CXX_COMPILER=`which clang++-9` -DCMAKE_C_COMPILER=`which clang-9`'
+GCC_8='-DCMAKE_CXX_COMPILER=`which g++-8` -DCMAKE_C_COMPILER=`which gcc-8`'
 GCC_9='-DCMAKE_CXX_COMPILER=`which g++-9` -DCMAKE_C_COMPILER=`which gcc-9`'
 
 TARGET="clickhouse"
 #MAKE="nice -10 ninja"
-MAKE="nice -10 make -j 56"
-NO_EMBEDDED="-DENABLE_EMBEDDED_COMPILER=0"
-NO_KAFKA="-DENABLE_RDKAFKA=0"
-NO_STATIC="-DUSE_STATIC_LIBRARIES=0"
+MAKE="nice make -j 56"
+#CMAKE_ENABLED="-DENABLE_OPENCL=1"
+CMAKE_ENABLED="-DENABLE_CUDA=1 -DUSE_LIBCXX=0"
+CMAKE_DISABLED="-DENABLE_EMBEDDED_COMPILER=0"
+NO_STATIC="-DUSE_STATIC_LIBRARIES=0 -DENABLE_JEMALLOC=0"
 DEBUG="-DCMAKE_BUILD_TYPE=Debug"
 ASAN="-DSANITIZE=address"
 TSAN="-DSANITIZE=thread"
@@ -36,14 +39,21 @@ UBSAN="-DSANITIZE=undefined"
 ASAN_SYMBOLIZER_PATH="/usr/lib/llvm-6.0/bin/llvm-symbolizer"
 
 #OVERRIDED_SETTINGS="--compile_expressions=1"
-#OVERRIDED_SETTINGS="--enable_optimize_predicate_expression=1"
-#OVERRIDED_SETTINGS="--join_algorithm=auto"
 #OVERRIDED_SETTINGS="--experimental_use_processors=0"
 
 CTEST_OPTS="TEST_SERVER_CONFIG_PARAMS='$OVERRIDED_SETTINGS'"
-TEST_RUN_OPTS="TEST_OPT0='--no-long --skip compile_sizeof_packed shard_secure cancel_http_readonly url_engine fix_extra_seek live_view \
+TEST_RUN_OPTS="TEST_OPT0='--no-long --skip \
+    compile_sizeof_packed shard_secure cancel_http_readonly url_engine fix_extra_seek live_view \
+    01231_distributed_aggregation_memory_efficient_mix_levels \
+    01223_dist_on_dist \
+    01201_drop_column_compact_part_replicated \
+    01200_mutations_memory_consumption \
+    01104_distributed \
+    01103_check_cpu_instructions_at_startup \
+    01099_parallel_distributed_insert_select \
     01092_memory_profiler \
     01091_num_threads \
+    01086_odbc_roundtrip \
     01088_benchmark_query_id \
     01083_log_family_disk_memory \
     01083_expressions_in_engine_arguments \
@@ -123,6 +133,7 @@ remote_cmake()
     WITH_TSAN=`echo "$@" | grep tsan | wc -l`
     WITH_UBSAN=`echo "$@" | grep ubsan | wc -l`
     WITH_DISABLED=`echo "$@" | grep disabled | wc -l`
+    WITH_ENABLED=`echo "$@" | grep enabled | wc -l`
     NO_LIBCXX=`echo "$@" | grep nolibcxx | wc -l`
     DYNLIB=`echo "$@" | grep dynlib | wc -l`
 
@@ -141,8 +152,11 @@ remote_cmake()
     if [ $NO_LIBCXX -ne 0 ] ; then
         CMAKE_OPTIONS="$CMAKE_OPTIONS -DUSE_LIBCXX=0"
     fi
+    if [ $WITH_ENABLED -ne 0 ] ; then
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $CMAKE_ENABLED"
+    fi
     if [ $WITH_DISABLED -eq 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $NO_EMBEDDED"
+        CMAKE_OPTIONS="$CMAKE_OPTIONS $CMAKE_DISABLED"
     fi
     if [ $DYNLIB -ne 0 ] ; then
         CMAKE_OPTIONS="$CMAKE_OPTIONS $NO_STATIC"
@@ -164,8 +178,8 @@ fetch()
     SERVER=$USER@$1
     NAME=$2
 
-    LOCAL_CRC=`md5sum -b $NAME | cut -f 1 -d " "`
-    REMOTE_CRC=`ssh $1 md5sum -b $NAME | cut -f 1 -d " "`
+    LOCAL_CRC=`sha1sum -b $NAME | cut -f 1 -d " "`
+    REMOTE_CRC=`ssh $1 sha1sum -b $NAME | cut -f 1 -d " "`
     echo $LOCAL_CRC $REMOTE_CRC
 
     if [ "$LOCAL_CRC" != "$REMOTE_CRC" ] ; then
