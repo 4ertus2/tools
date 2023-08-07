@@ -5,10 +5,10 @@ if [ $ISJ == '-j' ] ; then
     shift
 fi
 
-DEV_SERVER=(none mtlog-perftest01j.yandex.ru mtlog-perftest02j.yandex.ru mtlog-perftest03j.yandex.ru chertus-dev.sas.yp-c.yandex.net)
+DEV_SERVER=(chertus-dev.sas.yp-c.yandex.net)
 
-# needs 'git remote add pf1 ssh://$USER@mtlog-perftest01j.yandex.ru/home/$USER/ClickHouse.git'
-DEV_REPO=(none pf1 pf2 pf3 qyp)
+# it needs 'git remote add qyp ssh://$USER@chertus-dev.sas.yp-c.yandex.net/home/$USER/ClickHouse.git'
+DEV_REPO=(qyp)
 
 USER=`id -un`
 
@@ -20,67 +20,29 @@ CURRENT_BRANCH=`git rev-parse --abbrev-ref HEAD`
 PATCH_CACHED=r_cached.patch
 PATCH_DIFF=r_diff.patch
 
-CLANG_8='-DCMAKE_CXX_COMPILER=`which clang++-8` -DCMAKE_C_COMPILER=`which clang-8`'
-CLANG_9='-DCMAKE_CXX_COMPILER=`which clang++-9` -DCMAKE_C_COMPILER=`which clang-9`'
-GCC_8='-DCMAKE_CXX_COMPILER=`which g++-8` -DCMAKE_C_COMPILER=`which gcc-8`'
-GCC_9='-DCMAKE_CXX_COMPILER=`which g++-9` -DCMAKE_C_COMPILER=`which gcc-9`'
+CLANG_SYS='-DCMAKE_CXX_COMPILER=`which clang++` -DCMAKE_C_COMPILER=`which clang`'
+CLANG_15='-DCMAKE_CXX_COMPILER=`which clang++-15` -DCMAKE_C_COMPILER=`which clang-15`'
+GCC_SYS='-DCMAKE_CXX_COMPILER=`which g++` -DCMAKE_C_COMPILER=`which gcc`'
+#GCC_9='-DCMAKE_CXX_COMPILER=`which g++-9` -DCMAKE_C_COMPILER=`which gcc-9`'
 
 TARGET="clickhouse"
 #MAKE="nice -10 ninja"
-MAKE="nice make -j 56"
+MAKE="nice make -j 64"
 #CMAKE_ENABLED="-DENABLE_OPENCL=1"
-CMAKE_ENABLED="-DENABLE_CUDA=1 -DUSE_LIBCXX=0"
-CMAKE_DISABLED="-DENABLE_EMBEDDED_COMPILER=0"
-NO_STATIC="-DUSE_STATIC_LIBRARIES=0 -DENABLE_JEMALLOC=0"
+CMAKE_ENABLED="-DENABLE_CLANG_TIDY=1"
+#CMAKE_ENABLED="-DENABLE_CUDA=1 -DUSE_LIBCXX=0"
+CMAKE_DISABLED="-DENABLE_HDFS=0 -DENABLE_AWS_S3=0 -DENABLE_AZURE_BLOB_STORAGE=0 \
+    -DENABLE_KAFKA=0 -DENABLE_AMQPCPP=0 -DENABLE_CASSANDRA=0 -DENABLE_KRB5=0 -DENABLE_CYRUS_SASL=0 -DENABLE_AVRO=0 \
+    -DENABLE_CLICKHOUSE_OBFUSCATOR=0 -DENABLE_CLICKHOUSE_COPIER=0 -DENABLE_CLICKHOUSE_COMPRESSOR=0 \
+    -DENABLE_CLICKHOUSE_FORMAT=0 -DENABLE_CLICKHOUSE_LIBRARY_BRIDGE=0 -DENABLE_CLICKHOUSE_INSTALL=0 \
+    -DENABLE_CLICKHOUSE_KEEPER=0  -DENABLE_CLICKHOUSE_KEEPER_CONVERTER=0 -DENABLE_CLICKHOUSE_KEEPER_CLIENT=0 -DENABLE_CLICKHOUSE_SU=0 \
+    -DENABLE_CLICKHOUSE_DISKS=0 -DENABLE_CLICKHOUSE_GIT_IMPORT=0"
+UNBUNDLED="-DUNBUNDLED=1"
 DEBUG="-DCMAKE_BUILD_TYPE=Debug"
 ASAN="-DSANITIZE=address"
 TSAN="-DSANITIZE=thread"
 UBSAN="-DSANITIZE=undefined"
-ASAN_SYMBOLIZER_PATH="/usr/lib/llvm-6.0/bin/llvm-symbolizer"
-
-#OVERRIDED_SETTINGS="--compile_expressions=1"
-#OVERRIDED_SETTINGS="--experimental_use_processors=0"
-
-CTEST_OPTS="TEST_SERVER_CONFIG_PARAMS='$OVERRIDED_SETTINGS'"
-TEST_RUN_OPTS="TEST_OPT0='--no-long --skip \
-    compile_sizeof_packed shard_secure cancel_http_readonly url_engine fix_extra_seek live_view \
-    01231_distributed_aggregation_memory_efficient_mix_levels \
-    01223_dist_on_dist \
-    01201_drop_column_compact_part_replicated \
-    01200_mutations_memory_consumption \
-    01104_distributed \
-    01103_check_cpu_instructions_at_startup \
-    01099_parallel_distributed_insert_select \
-    01092_memory_profiler \
-    01091_num_threads \
-    01086_odbc_roundtrip \
-    01088_benchmark_query_id \
-    01083_log_family_disk_memory \
-    01083_expressions_in_engine_arguments \
-    01080_check_for_error_incorrect_size_of_nested_column \
-    01071_force_optimize_skip_unused_shards \
-    01062_alter_on_mutataion \
-    01057_http_compression_prefer_brotli \
-    01050_clickhouse_dict_source_with_subquery \
-    01040_dictionary_invalidate_query_switchover \
-    01040_dictionary_invalidate_query_failover \
-    01043_dictionary 01041_create_dictionary_if_not_exists \
-    01042_system_reload_dictionary_reloads_completely \
-    01038_dictionary_lifetime_min_zero_sec \
-    01037_polygon_dict_multi_polygons \
-    01037_polygon_dict_simple_polygons \
-    01036_no_superfluous_dict_reload_on_create_database \
-    01036_no_superfluous_dict_reload_on_create_database_2 \
-    01033_dictionaries_lifetime \
-    01023_materialized_view_query_context \
-    01018_dictionaries_from_dictionaries \
-    01018_Distributed__shard_num distributed_directory \
-    01018_ddl_dictionaries \
-    01016_macros \
-    00990_metric_log 00974_query 00974_distr 00974_text_log \
-    00956_sensitive_data_masking \
-    00952_insert_into_distributed_with_materialized_column \
-    00505_secure 00634_performance_introspection_and_logging'"
+#ASAN_SYMBOLIZER_PATH="/usr/lib/llvm-6.0/bin/llvm-symbolizer"
 
 remote_patch()
 {
@@ -117,6 +79,20 @@ remote_build()
     ssh $SERVER "cd $CH_BUILD_PATH && $MAKE $TARGET"
 }
 
+remote_build_nopatch()
+{
+    SERVER=$USER@$1
+
+    ssh $SERVER "cd $CH_BUILD_PATH && $MAKE -k $TARGET"
+}
+
+remote_build_nopatch_slow()
+{
+    SERVER=$USER@$1
+
+    ssh $SERVER "cd $CH_BUILD_PATH && $MAKE_SLOW -k $TARGET"
+}
+
 remote_cmake()
 {
     SERVER=$USER@$1
@@ -135,7 +111,6 @@ remote_cmake()
     WITH_DISABLED=`echo "$@" | grep disabled | wc -l`
     WITH_ENABLED=`echo "$@" | grep enabled | wc -l`
     NO_LIBCXX=`echo "$@" | grep nolibcxx | wc -l`
-    DYNLIB=`echo "$@" | grep dynlib | wc -l`
 
     if [ $RELEASE -eq 0 ] ; then
         CMAKE_OPTIONS="$CMAKE_OPTIONS $DEBUG"
@@ -158,9 +133,7 @@ remote_cmake()
     if [ $WITH_DISABLED -eq 0 ] ; then
         CMAKE_OPTIONS="$CMAKE_OPTIONS $CMAKE_DISABLED"
     fi
-    if [ $DYNLIB -ne 0 ] ; then
-        CMAKE_OPTIONS="$CMAKE_OPTIONS $NO_STATIC"
-    fi
+
     echo "cmake options:" $CMAKE_OPTIONS
 
     ssh $SERVER "mkdir -p $CH_BUILD_PATH && cd $CH_BUILD_PATH && rm -f CMakeCache.txt && cmake $GENERATOR $CMAKE_OPTIONS $CH_PATH"
@@ -221,7 +194,7 @@ update_contrib()
 run_tests()
 {
     SERVER=$USER@$1
-    ssh -t $SERVER "cd $CH_BUILD_PATH && env ASAN_SYMBOLIZER_PATH=$ASAN_SYMBOLIZER_PATH $CTEST_OPTS $TEST_RUN_OPTS ctest -V"
+    ssh -t $SERVER "cd $CH_BUILD_PATH && env ASAN_SYMBOLIZER_PATH=$ASAN_SYMBOLIZER_PATH $TEST_RUN_OPTS ctest -V"
 }
 
 run_tests_local()
@@ -236,23 +209,21 @@ case "$1" in
     #cd $CH_BUILD_PATH && rm -f CMakeCache.txt && cmake -G Ninja $CMAKE_OPTIONS $CH_PATH
     cd $CH_BUILD_PATH && $MAKE
     ;;
+"0")
+    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
+    #remote_build_nopatch ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
+    ;;
 "1")
     remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
     ;;
-"2")
-    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
-    ;;
-"3")
-    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
-    ;;
-"4")
-    remote_build ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
+"build")
+    remote_build_nopatch ${DEV_SERVER[$1]} ${DEV_REPO[$1]}
     ;;
 "cmake")
-    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$CLANG_9" $@
+    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$CLANG_SYS" $@
     ;;
 "cmake-gcc")
-    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$GCC_9" $@
+    remote_cmake ${DEV_SERVER[$2]} ${DEV_REPO[$2]} "$GCC_SYS" $@
     ;;
 "clear")
     clear_build ${DEV_SERVER[$2]}
